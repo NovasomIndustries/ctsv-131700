@@ -7,10 +7,6 @@
 #include "Lcd.h"
 
 #include "main.h"
-#include "st7735.h"
-#include "fonts.h"
-
-#include <stdio.h>
 
 extern	TIM_HandleTypeDef 	htim16;
 extern	uint16_t			current_brightness;
@@ -20,15 +16,6 @@ extern	uint16_t			current_brightness;
 uint8_t	horizontal_line_space;
 uint8_t	vertical_line_space;
 uint8_t	current_highlight_line;
-
-typedef struct {
-    uint8_t xpos;
-	uint8_t	ypos;
-    char line[32];
-    uint16_t fore_color;
-	uint16_t bkg_color;
-} Video;
-
 #define	NUMLINES	7
 
 Video VideoMem[NUMLINES]=
@@ -101,6 +88,13 @@ void LcdInit(void)
 	ST7735_Unselect();
 	ST7735_Init();
     ST7735_FillScreen(ST7735_BLACK);
-    initVideo();
+    // initVideo();
+    ST7735_WriteString(30, 30, "SurgyBlue", Font_11x18, ST7735_BLUE, ST7735_BLACK);
 	HAL_TIM_PWM_Start(&htim16,TIM_CHANNEL_1);
+}
+
+void LcdWrite11x18(Video *wr_struct)
+{
+	ST7735_FillScreen(ST7735_BLACK);
+	ST7735_WriteString(wr_struct->xpos, wr_struct->ypos, wr_struct->line, Font_11x18, wr_struct->fore_color, wr_struct->bkg_color);
 }

@@ -23,7 +23,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <stdint.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -65,7 +66,7 @@ static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+void debounce(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -73,28 +74,31 @@ static void MX_USART1_UART_Init(void);
 uint16_t	current_brightness=HALF_BRIGHTNESS;
 uint16_t	direction=0;
 uint16_t	up=0;
-uint8_t		minus_button,plus_button,on_button;
+uint8_t		minus_button, plus_button,on_button;
+
+uint16_t    speed[7] = {0, 400, 500, 600, 700, 800, 900};
+uint16_t    rpm_per_duty[7] = {0, 80, 90, 98, 103, 106, 109};
+uint8_t     speed_level = 0;
+Video       lcd_wr_stct;
+
+void debounce(void)
+{
+	HAL_Delay(15);
+}
+
+void print_set_speed(void)
+{
+	LcdSetBrightness(HALF_BRIGHTNESS);
+	lcd_wr_stct.xpos = 15;
+	lcd_wr_stct.ypos = 30;
+	sprintf(lcd_wr_stct.line, "Set Speed: %d", speed_level);
+	LcdWrite11x18(&lcd_wr_stct);
+	HAL_Delay(250);
+}
 
 void timer100msec_handler(void)
 {
-	if ( direction ==1 )
-	{
-		current_brightness+=10;
-		if ( current_brightness > FULL_BRIGHTNESS)
-			direction=0;
-	}
-	else
-	{
-		current_brightness-=10;
-		if ( current_brightness < ZERO_BRIGHTNESS)
-			direction=1;
-	}
-	LcdSetBrightness(current_brightness);
-
-	/* Button read*/
-	minus_button = HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port,SPEED_MINUS_Pin);
-	plus_button = HAL_GPIO_ReadPin(SPEED_PLUS_GPIO_Port,SPEED_PLUS_Pin);
-	on_button = HAL_GPIO_ReadPin(ON_GPIO_Port,ON_Pin);
+	__NOP();
 }
 /* USER CODE END 0 */
 
@@ -134,9 +138,18 @@ int main(void)
   MX_TIM1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  lcd_wr_stct.bkg_color = ST7735_BLACK;
+  lcd_wr_stct.fore_color = ST7735_WHITE;
+  lcd_wr_stct.xpos = 0;
+  lcd_wr_stct.ypos = 0;
 
-	HAL_TIM_Base_Start_IT(&htim17);
-	LcdInit();
+  HAL_TIM_Base_Start_IT(&htim17);
+  LcdInit();
+
+  htim1.Instance->CCR1 = 0;
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
+  HAL_Delay(500);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -144,6 +157,49 @@ int main(void)
   while (1)
   {
 	  //HAL_PWR_EnterSLEEPMode(PWR_LOWPOWERREGULATOR_ON,PWR_SLEEPENTRY_WFI);
+	  if (!HAL_GPIO_ReadPin(SPEED_PLUS_GPIO_Port, SPEED_PLUS_Pin))
+	  {
+		  debounce();
+		  while (!HAL_GPIO_ReadPin(SPEED_PLUS_GPIO_Port, SPEED_PLUS_Pin))
+		  {
+			  if (speed_level < 6)
+			  {
+				  speed_level += 1;
+				  print_set_speed();
+			  }
+		  }
+	  }
+
+	  if (!HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port, SPEED_MINUS_Pin))
+	  {
+		  debounce();
+		  while (!HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port, SPEED_MINUS_Pin))
+		  {
+			  if (speed_level > 1)
+			  {
+				  speed_level -= 1;
+				  print_set_speed();
+			  }
+		  }
+	  }
+
+	  if (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin))
+	  {
+		  debounce();
+		  lcd_wr_stct.xpos = 40;
+		  lcd_wr_stct.ypos = 30;
+		  sprintf(lcd_wr_stct.line, "RPM: %d", rpm_per_duty[speed_level]);
+		  LcdWrite11x18(&lcd_wr_stct);
+		  while (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin))
+		  {
+			  htim1.Instance->CCR1 = speed[speed_level];
+		  }
+
+		  print_set_speed();
+		  htim1.Instance->CCR1 = speed[0];
+	  }
+
+	  LcdSetBrightness(ZERO_BRIGHTNESS);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -315,9 +371,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 16;
+  htim1.Init.Prescaler = 320;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 10000;
+  htim1.Init.Period = 1000;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
