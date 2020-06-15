@@ -186,6 +186,7 @@ int main(void)
 	  if (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin))
 	  {
 		  debounce();
+		  LcdSetBrightness(ZERO_BRIGHTNESS);
 		  lcd_wr_stct.xpos = 40;
 		  lcd_wr_stct.ypos = 30;
 		  sprintf(lcd_wr_stct.line, "RPM: %d", rpm_per_duty[speed_level]);
