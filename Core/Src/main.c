@@ -23,7 +23,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <stdint.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,6 +43,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+
+RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi1;
 
@@ -64,8 +67,9 @@ static void MX_TIM17_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
-
+void debounce(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -73,28 +77,31 @@ static void MX_USART1_UART_Init(void);
 uint16_t	current_brightness=HALF_BRIGHTNESS;
 uint16_t	direction=0;
 uint16_t	up=0;
-uint8_t		minus_button,plus_button,on_button;
+uint8_t		minus_button, plus_button,on_button;
+
+uint16_t    speed[7] = {0, 400, 500, 600, 700, 800, 900};
+uint16_t    rpm_per_duty[7] = {0, 80, 90, 98, 103, 106, 109};
+uint8_t     speed_level = 0;
+Video       lcd_wr_stct;
+
+void debounce(void)
+{
+	HAL_Delay(15);
+}
+
+void print_set_speed(void)
+{
+	LcdSetBrightness(HALF_BRIGHTNESS);
+	lcd_wr_stct.xpos = 15;
+	lcd_wr_stct.ypos = 30;
+	sprintf(lcd_wr_stct.line, "Set Speed: %d", speed_level);
+	LcdWrite11x18(&lcd_wr_stct);
+	HAL_Delay(250);
+}
 
 void timer100msec_handler(void)
 {
-	if ( direction ==1 )
-	{
-		current_brightness+=10;
-		if ( current_brightness > FULL_BRIGHTNESS)
-			direction=0;
-	}
-	else
-	{
-		current_brightness-=10;
-		if ( current_brightness < ZERO_BRIGHTNESS)
-			direction=1;
-	}
-	LcdSetBrightness(current_brightness);
-
-	/* Button read*/
-	minus_button = HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port,SPEED_MINUS_Pin);
-	plus_button = HAL_GPIO_ReadPin(SPEED_PLUS_GPIO_Port,SPEED_PLUS_Pin);
-	on_button = HAL_GPIO_ReadPin(ON_GPIO_Port,ON_Pin);
+	__NOP();
 }
 /* USER CODE END 0 */
 
@@ -133,10 +140,20 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM1_Init();
   MX_USART1_UART_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
+  lcd_wr_stct.bkg_color = ST7735_BLACK;
+  lcd_wr_stct.fore_color = ST7735_WHITE;
+  lcd_wr_stct.xpos = 0;
+  lcd_wr_stct.ypos = 0;
 
-	HAL_TIM_Base_Start_IT(&htim17);
-	LcdInit();
+  HAL_TIM_Base_Start_IT(&htim17);
+  LcdInit();
+
+  htim1.Instance->CCR1 = 0;
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
+  HAL_Delay(500);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -144,6 +161,50 @@ int main(void)
   while (1)
   {
 	  //HAL_PWR_EnterSLEEPMode(PWR_LOWPOWERREGULATOR_ON,PWR_SLEEPENTRY_WFI);
+	  if (!HAL_GPIO_ReadPin(SPEED_PLUS_GPIO_Port, SPEED_PLUS_Pin))
+	  {
+		  debounce();
+		  while (!HAL_GPIO_ReadPin(SPEED_PLUS_GPIO_Port, SPEED_PLUS_Pin))
+		  {
+			  if (speed_level < 6)
+			  {
+				  speed_level += 1;
+				  print_set_speed();
+			  }
+		  }
+	  }
+
+	  if (!HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port, SPEED_MINUS_Pin))
+	  {
+		  debounce();
+		  while (!HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port, SPEED_MINUS_Pin))
+		  {
+			  if (speed_level > 1)
+			  {
+				  speed_level -= 1;
+				  print_set_speed();
+			  }
+		  }
+	  }
+
+	  if (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin))
+	  {
+		  debounce();
+		  LcdSetBrightness(ZERO_BRIGHTNESS);
+		  lcd_wr_stct.xpos = 40;
+		  lcd_wr_stct.ypos = 30;
+		  sprintf(lcd_wr_stct.line, "RPM: %d", rpm_per_duty[speed_level]);
+		  LcdWrite11x18(&lcd_wr_stct);
+		  while (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin))
+		  {
+			  htim1.Instance->CCR1 = speed[speed_level];
+		  }
+
+		  print_set_speed();
+		  htim1.Instance->CCR1 = speed[0];
+	  }
+
+	  LcdSetBrightness(ZERO_BRIGHTNESS);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -166,10 +227,11 @@ void SystemClock_Config(void)
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSIDiv = RCC_HSI_DIV1;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -189,9 +251,12 @@ void SystemClock_Config(void)
   }
   /** Initializes the peripherals clocks 
   */
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_ADC;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_USART1
+                              |RCC_PERIPHCLK_ADC;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK1;
   PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -252,6 +317,71 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+  /** Initialize RTC Only 
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+    
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date 
+  */
+  sTime.Hours = 0x0;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
+  sTime.SubSeconds = 0x0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 0x1;
+  sDate.Year = 0x0;
+
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
 
 }
 
