@@ -9,7 +9,6 @@
 #include "main.h"
 
 extern	TIM_HandleTypeDef 	htim16;
-extern	uint16_t			current_brightness;
 
 #define VMARGIN 1
 #define HMARGIN (12*7)-1
@@ -66,14 +65,15 @@ Video VideoMem[NUMLINES]=
 
 static void initVideo(void)
 {
-int i;
+/*int i;
 	horizontal_line_space = ST7735_GetFontWidth(Font_7x10);
 	vertical_line_space = ST7735_GetFontHeigth(Font_7x10) + VMARGIN;
 	for (i=0;i<NUMLINES;i++)
 	{
 		VideoMem[i].ypos *= vertical_line_space;
 		ST7735_WriteString(VideoMem[i].xpos, VideoMem[i].ypos,VideoMem[i].line,Font_7x10,VideoMem[i].fore_color,VideoMem[i].bkg_color);
-	}
+	}*/
+	ST7735_WriteString(30, 30, "SurgyBlue", Font_11x18, ST7735_BLUE, ST7735_BLACK);
 }
 
 void LcdSetBrightness(uint16_t brightness)
@@ -84,12 +84,11 @@ void LcdSetBrightness(uint16_t brightness)
 
 void LcdInit(void)
 {
-	current_brightness = FULL_BRIGHTNESS;
 	ST7735_Unselect();
 	ST7735_Init();
     ST7735_FillScreen(ST7735_BLACK);
-    // initVideo();
-    ST7735_WriteString(30, 30, "SurgyBlue", Font_11x18, ST7735_BLUE, ST7735_BLACK);
+    LcdSetBrightness(HALF_BRIGHTNESS);
+    initVideo();
 	HAL_TIM_PWM_Start(&htim16,TIM_CHANNEL_1);
 }
 

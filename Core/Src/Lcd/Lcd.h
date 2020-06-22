@@ -22,7 +22,8 @@ typedef struct {
 	uint16_t bkg_color;
 } Video;
 
-#define	ZERO_BRIGHTNESS	20
+#define	ZERO_BRIGHTNESS	0
+#define	LOW_BRIGHTNESS	20
 #define	HALF_BRIGHTNESS	500
 #define	FULL_BRIGHTNESS	1000
 extern	void LcdInit(void);
