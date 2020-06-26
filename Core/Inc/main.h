@@ -61,16 +61,25 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define GPIO_Analog_UnusedPC14_Pin GPIO_PIN_14
+#define GPIO_Analog_UnusedPC14_GPIO_Port GPIOC
 #define SPEED_MINUS_Pin GPIO_PIN_15
 #define SPEED_MINUS_GPIO_Port GPIOC
+#define SPEED_MINUS_EXTI_IRQn EXTI4_15_IRQn
+#define GPIO_Analog_UnusedPF2_Pin GPIO_PIN_2
+#define GPIO_Analog_UnusedPF2_GPIO_Port GPIOF
 #define SPEED_PLUS_Pin GPIO_PIN_0
 #define SPEED_PLUS_GPIO_Port GPIOA
+#define SPEED_PLUS_EXTI_IRQn EXTI0_1_IRQn
 #define LCDCS_Pin GPIO_PIN_3
 #define LCDCS_GPIO_Port GPIOA
 #define ON_Pin GPIO_PIN_4
 #define ON_GPIO_Port GPIOA
+#define ON_EXTI_IRQn EXTI4_15_IRQn
 #define BATTERY_Pin GPIO_PIN_5
 #define BATTERY_GPIO_Port GPIOA
+#define GPIO_Analog_UnusedPA7_Pin GPIO_PIN_7
+#define GPIO_Analog_UnusedPA7_GPIO_Port GPIOA
 #define LCDDC_Pin GPIO_PIN_11
 #define LCDDC_GPIO_Port GPIOA
 #define LCDRESET_Pin GPIO_PIN_12

@@ -228,7 +228,6 @@ int main(void)
 	  {
 		  enter_stop_mode();
 	  }
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
