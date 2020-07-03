@@ -52,6 +52,7 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim16;
+TIM_HandleTypeDef htim17;
 
 UART_HandleTypeDef huart1;
 
@@ -68,19 +69,23 @@ static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_RTC_Init(void);
+static void MX_TIM17_Init(void);
 /* USER CODE BEGIN PFP */
 void print_set_speed(void);
+void set_duty_cyc(void);
 void enter_stop_mode(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint16_t    speed[7] = {0, 400, 500, 600, 700, 800, 900};
+uint16_t    dty_cyc[7] = {0, 400, 500, 600, 700, 800, 900};
 uint16_t    rpm_per_duty[7] = {0, 80, 90, 98, 103, 106, 109};
+uint16_t    current_duty = 0;
 
 uint8_t     speed_level = 0;
 
 _Bool       stop_flag = false;
+_Bool		spd_inc_flag = false;
 
 Video       lcd_wr_stct;
 
@@ -89,7 +94,7 @@ void print_set_speed(void)
 	MX_RTC_Init();
 	lcd_wr_stct.xpos = 15;
 	lcd_wr_stct.ypos = 30;
-	sprintf(lcd_wr_stct.line, "Set Speed: %d", speed_level);
+	sprintf(lcd_wr_stct.line, "Level %d: %d RPM", speed_level, rpm_per_duty[speed_level]);
 	LcdWrite11x18(&lcd_wr_stct);
 	HAL_Delay(250);
 }
@@ -101,6 +106,11 @@ void enter_stop_mode(void)
 	HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
 
 	stop_flag = true;
+}
+
+void TIM17_ICBF(void)
+{
+	spd_inc_flag = true;
 }
 /* USER CODE END 0 */
 
@@ -140,11 +150,10 @@ int main(void)
   MX_TIM1_Init();
   MX_USART1_UART_Init();
   MX_RTC_Init();
+  MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
   lcd_wr_stct.bkg_color = ST7735_BLACK;
   lcd_wr_stct.fore_color = ST7735_WHITE;
-  lcd_wr_stct.xpos = 0;
-  lcd_wr_stct.ypos = 0;
 
   LcdInit();
 
@@ -194,20 +203,21 @@ int main(void)
 	  if (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin))
 	  {
 		  HAL_Delay(DEBOUNCE_TIME);
-          LcdSetBrightness(LOW_BRIGHTNESS);
-		  lcd_wr_stct.xpos = 40;
-		  lcd_wr_stct.ypos = 30;
-		  sprintf(lcd_wr_stct.line, "RPM: %d", rpm_per_duty[speed_level]);
-		  LcdWrite11x18(&lcd_wr_stct);
+          LcdSetBrightness(ZERO_BRIGHTNESS);
 
 		  while (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin))
 		  {
 			  MX_RTC_Init();
-			  htim1.Instance->CCR1 = speed[speed_level];
+			  if (current_duty < dty_cyc[speed_level] && spd_inc_flag)
+			  {
+				  spd_inc_flag = false;
+				  current_duty += 5;
+			  }
+			  htim1.Instance->CCR1 = current_duty;
 		  }
 
 		  print_set_speed();
-		  htim1.Instance->CCR1 = speed[0];
+		  htim1.Instance->CCR1 = dty_cyc[0];
 	  }
 
 	  HAL_RTC_GetTime(&hrtc, &stimestructureget, RTC_FORMAT_BIN);
@@ -486,7 +496,7 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 1;
+  sConfigOC.Pulse = 5000;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -580,6 +590,38 @@ static void MX_TIM16_Init(void)
 
   /* USER CODE END TIM16_Init 2 */
   HAL_TIM_MspPostInit(&htim16);
+
+}
+
+/**
+  * @brief TIM17 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM17_Init(void)
+{
+
+  /* USER CODE BEGIN TIM17_Init 0 */
+
+  /* USER CODE END TIM17_Init 0 */
+
+  /* USER CODE BEGIN TIM17_Init 1 */
+
+  /* USER CODE END TIM17_Init 1 */
+  htim17.Instance = TIM17;
+  htim17.Init.Prescaler = 16;
+  htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim17.Init.Period = 2000;
+  htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim17.Init.RepetitionCounter = 0;
+  htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim17) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM17_Init 2 */
+
+  /* USER CODE END TIM17_Init 2 */
 
 }
 
