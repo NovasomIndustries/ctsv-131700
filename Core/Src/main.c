@@ -51,6 +51,7 @@ RTC_HandleTypeDef hrtc;
 SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim14;
 TIM_HandleTypeDef htim16;
 TIM_HandleTypeDef htim17;
 
@@ -70,6 +71,7 @@ static void MX_TIM1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM17_Init(void);
+static void MX_TIM14_Init(void);
 /* USER CODE BEGIN PFP */
 void print_set_speed(void);
 void set_duty_cyc(void);
@@ -78,11 +80,13 @@ void enter_stop_mode(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint16_t    dty_cyc[7] = {0, 400, 500, 600, 700, 800, 900};
-uint16_t    rpm_per_duty[7] = {0, 80, 90, 98, 103, 106, 109};
+const uint16_t default_duty = 450;
 uint16_t    current_duty = 0;
+uint16_t    secs[6] = {30, 60, 90, 120, 150, 180};
 
-uint8_t     speed_level = 0;
+uint8_t     time = 0;
+uint8_t     time_set = 0;
+uint8_t     curr_time = 0;
 
 _Bool       stop_flag = false;
 _Bool		spd_inc_flag = false;
@@ -92,9 +96,9 @@ Video       lcd_wr_stct;
 void print_set_speed(void)
 {
 	MX_RTC_Init();
-	lcd_wr_stct.xpos = 15;
+	lcd_wr_stct.xpos = 0;
 	lcd_wr_stct.ypos = 30;
-	sprintf(lcd_wr_stct.line, "Level %d: %d RPM", speed_level, rpm_per_duty[speed_level]);
+	sprintf(lcd_wr_stct.line, "Set %d Secs.", secs[time_set]);
 	LcdWrite11x18(&lcd_wr_stct);
 	HAL_Delay(250);
 }
@@ -112,6 +116,17 @@ void TIM17_ICBF(void)
 {
 	spd_inc_flag = true;
 }
+
+void TIM14_ICBF(void)
+{
+	//LcdWrite11x18(&lcd_wr_stct);
+}
+
+/*void RTC_AlarmA_ICBF(void)
+{
+	LcdWrite11x18(&lcd_wr_stct);
+}*/
+
 /* USER CODE END 0 */
 
 /**
@@ -151,6 +166,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_RTC_Init();
   MX_TIM17_Init();
+  MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
   lcd_wr_stct.bkg_color = ST7735_BLACK;
   lcd_wr_stct.fore_color = ST7735_WHITE;
@@ -158,7 +174,7 @@ int main(void)
   LcdInit();
 
   htim1.Instance->CCR1 = 0;
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  //__HAL_RTC_ALARM_ENABLE_IT(&hrtc, RTC_IT_ALRA);
 
   HAL_Delay(500);
   /* USER CODE END 2 */
@@ -183,18 +199,18 @@ int main(void)
 
 		  while (!HAL_GPIO_ReadPin(SPEED_PLUS_GPIO_Port, SPEED_PLUS_Pin))
 		  {
-			  if (speed_level < 6)
+			  if (time_set < 6)
 			  {
-				  speed_level += 1;
+				  time_set += 1;
 				  print_set_speed();
 			  }
 		  }
 
 		  while (!HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port, SPEED_MINUS_Pin))
 		  {
-			  if (speed_level > 1)
+			  if (time_set > 1)
 			  {
-				  speed_level -= 1;
+				  time_set -= 1;
 				  print_set_speed();
 			  }
 		  }
@@ -203,21 +219,42 @@ int main(void)
 	  if (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin))
 	  {
 		  HAL_Delay(DEBOUNCE_TIME);
-          LcdSetBrightness(ZERO_BRIGHTNESS);
+          LcdSetBrightness(LOW_BRIGHTNESS);
+          HAL_Delay(50);
+          HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+          MX_RTC_Init();
+          HAL_TIM_Base_Start_IT(&htim14);
+          HAL_TIM_Base_Start_IT(&htim17);
 
 		  while (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin))
 		  {
-			  MX_RTC_Init();
-			  if (current_duty < dty_cyc[speed_level] && spd_inc_flag)
+			  if (current_duty < default_duty && spd_inc_flag)
 			  {
 				  spd_inc_flag = false;
 				  current_duty += 5;
 			  }
-			  htim1.Instance->CCR1 = current_duty;
+
+			  HAL_RTC_GetTime(&hrtc, &stimestructureget, RTC_FORMAT_BIN);
+			  HAL_RTC_GetDate(&hrtc, &sdatestructureget, RTC_FORMAT_BIN);
+			  curr_time = stimestructureget.Seconds;
+			  time = secs[time_set]-stimestructureget.Seconds;
+
+			  if (secs[time_set]-stimestructureget.Seconds > 0)
+			  {
+				  htim1.Instance->CCR1 = current_duty;
+				  sprintf(lcd_wr_stct.line, "%d'", time);
+				  curr_time = stimestructureget.Seconds;
+			  }
+
 		  }
 
+		  current_duty = 0;
+		  htim1.Instance->CCR1 = current_duty;
+		  HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+		  HAL_TIM_Base_Stop_IT(&htim14);
+		  HAL_TIM_Base_Stop_IT(&htim17);
+		  HAL_Delay(100);
 		  print_set_speed();
-		  htim1.Instance->CCR1 = dty_cyc[0];
 	  }
 
 	  HAL_RTC_GetTime(&hrtc, &stimestructureget, RTC_FORMAT_BIN);
@@ -367,6 +404,7 @@ static void MX_RTC_Init(void)
 
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
+  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -409,6 +447,23 @@ static void MX_RTC_Init(void)
   sDate.Year = 0x0;
 
   if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Enable the Alarm A 
+  */
+  sAlarm.AlarmTime.Hours = 0x0;
+  sAlarm.AlarmTime.Minutes = 0x0;
+  sAlarm.AlarmTime.Seconds = 0x1;
+  sAlarm.AlarmTime.SubSeconds = 0x0;
+  sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
+  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+  sAlarm.AlarmDateWeekDay = 0x1;
+  sAlarm.Alarm = RTC_ALARM_A;
+  if (HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
   {
     Error_Handler();
   }
@@ -527,6 +582,37 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 2 */
   HAL_TIM_MspPostInit(&htim1);
+
+}
+
+/**
+  * @brief TIM14 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM14_Init(void)
+{
+
+  /* USER CODE BEGIN TIM14_Init 0 */
+
+  /* USER CODE END TIM14_Init 0 */
+
+  /* USER CODE BEGIN TIM14_Init 1 */
+
+  /* USER CODE END TIM14_Init 1 */
+  htim14.Instance = TIM14;
+  htim14.Init.Prescaler = 16000;
+  htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim14.Init.Period = 1000;
+  htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM14_Init 2 */
+
+  /* USER CODE END TIM14_Init 2 */
 
 }
 
@@ -709,11 +795,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIO_Analog_UnusedPF2_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SPEED_PLUS_Pin ON_Pin */
-  GPIO_InitStruct.Pin = SPEED_PLUS_Pin|ON_Pin;
+  /*Configure GPIO pin : SPEED_PLUS_Pin */
+  GPIO_InitStruct.Pin = SPEED_PLUS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(SPEED_PLUS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LCDCS_Pin LCDDC_Pin LCDRESET_Pin */
   GPIO_InitStruct.Pin = LCDCS_Pin|LCDDC_Pin|LCDRESET_Pin;
@@ -721,6 +807,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : ON_Pin */
+  GPIO_InitStruct.Pin = ON_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(ON_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : GPIO_Analog_UnusedPA7_Pin */
   GPIO_InitStruct.Pin = GPIO_Analog_UnusedPA7_Pin;
