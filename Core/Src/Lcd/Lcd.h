@@ -23,11 +23,12 @@ typedef struct {
 } Video;
 
 #define	ZERO_BRIGHTNESS	0
-#define	LOW_BRIGHTNESS	20
+#define	LOW_BRIGHTNESS	30
 #define	HALF_BRIGHTNESS	500
 #define	FULL_BRIGHTNESS	1000
 extern	void LcdInit(void);
 extern void LcdWrite11x18(Video *data);
+extern void LcdClearScreen(Void);
 extern	void LcdSetBrightness(uint16_t brightness);
 
 #endif /* LCDTASK_H_ */
