@@ -266,7 +266,7 @@ int main(void)
 		  HAL_Delay(DEBOUNCE_TIME);
 
 		  run_flag = true;
-          LcdSetBrightness(LOW_BRIGHTNESS);
+          LcdSetBrightness(HALF_BRIGHTNESS);
           tim14_counter = secs[time_set];
           HAL_Delay(REGISTER_WR_TIME);
 
@@ -284,7 +284,7 @@ int main(void)
 			  current_duty += 5;
 		  }
 		  htim1.Instance->CCR1 = current_duty;
-	      lcd_wr_stct.xpos = 65;
+		  lcd_wr_stct.xpos = 65;
 		  lcd_wr_stct.ypos = 35;
 		  sprintf(lcd_wr_stct.line, "%d'", tim14_counter);
 
@@ -298,12 +298,12 @@ int main(void)
 	  HAL_RTC_GetTime(&hrtc, &stimestructureget, RTC_FORMAT_BIN);
 	  HAL_RTC_GetDate(&hrtc, &sdatestructureget, RTC_FORMAT_BIN);
 
-	  if (stimestructureget.Seconds >= 3 && !run_flag)
+	  if (stimestructureget.Seconds >= 30 && !run_flag)
 	  {
 		  LcdSetBrightness(LOW_BRIGHTNESS);
 	  }
 
-	  if (stimestructureget.Seconds >= 10 && !run_flag)
+	  if (stimestructureget.Seconds >= 120 && !run_flag)
 	  {
 		  LcdClearScreen();
 		  LcdSetBrightness(ZERO_BRIGHTNESS);
