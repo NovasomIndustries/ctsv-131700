@@ -102,8 +102,8 @@ void print_set_speed(void)
 	MX_RTC_Init();
 
 	sprintf(lcd_wr_stct.line, "Set: %d\" ", time_set);
-	lcd_wr_stct.xpos = (uint8_t)(160-(strlen(lcd_wr_stct.line))*CHAR_W)/2;
-	lcd_wr_stct.ypos = (uint8_t)(80-CHAR_H)/2;
+	lcd_wr_stct.xpos = (uint8_t)(ST7735_WIDTH-(strlen(lcd_wr_stct.line))*CHAR_W)/2;
+	lcd_wr_stct.ypos = (uint8_t)(ST7735_HEIGHT-CHAR_H)/2;
 	if (time_set == 90 && !HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port, SPEED_MINUS_Pin))
 		LcdClearScreen(&lcd_wr_stct);
 
@@ -147,8 +147,8 @@ void TIM17_ICBF(void)
 void TIM14_ICBF(void)
 {
 	sprintf(lcd_wr_stct.line, "%d / %d\"", time_tmp, time_set);
-	lcd_wr_stct.xpos = (uint8_t)(160-(strlen(lcd_wr_stct.line))*11)/2;
-	lcd_wr_stct.ypos = (uint8_t)(80-CHAR_H)/2;
+	lcd_wr_stct.xpos = (uint8_t)(ST7735_WIDTH-(strlen(lcd_wr_stct.line))*CHAR_W)/2;
+	lcd_wr_stct.ypos = (uint8_t)(ST7735_HEIGHT-CHAR_H)/2;
 	if (time_tmp == 99 || time_tmp == 9)
 		LcdClearScreen(&lcd_wr_stct);
 	LcdWrite11x18(&lcd_wr_stct);
