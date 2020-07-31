@@ -82,12 +82,12 @@ void run_status_deinit(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-const uint16_t secs[6] = {30, 60, 90, 120, 150, 180};
 const uint16_t default_duty = 450;
 uint16_t    current_duty = 0;
-uint16_t    tim14_counter = 0;
 
-uint8_t     time_set = 0;
+uint8_t     time_set = 30;
+uint8_t     time_tmp = 0;
+uint8_t     len = 0;
 
 _Bool       mcu_stop_flag = false;
 _Bool		spd_inc_flag = false;
@@ -101,9 +101,12 @@ void print_set_speed(void)
 {
 	MX_RTC_Init();
 
-	lcd_wr_stct.xpos = 15;
-	lcd_wr_stct.ypos = 35;
-	sprintf(lcd_wr_stct.line, "Set %d Secs.", secs[time_set]);
+	sprintf(lcd_wr_stct.line, "Set: %d\" ", time_set);
+	lcd_wr_stct.xpos = (uint8_t)(160-(strlen(lcd_wr_stct.line))*CHAR_W)/2;
+	lcd_wr_stct.ypos = (uint8_t)(80-CHAR_H)/2;
+	if (time_set == 90 && !HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port, SPEED_MINUS_Pin))
+		LcdClearScreen(&lcd_wr_stct);
+
 	LcdWrite11x18(&lcd_wr_stct);
 	HAL_Delay(250);
 }
@@ -119,8 +122,9 @@ void enter_stop_mode(void)
 
 void run_status_deinit(void)
 {
+	sprintf(lcd_wr_stct.line, "%d / %d\"", time_tmp, time_set);
+	LcdWrite11x18(&lcd_wr_stct);
 	run_flag = false;
-	tim14_counter = 0;
 
 	current_duty = 0;
 	htim1.Instance->CCR1 = current_duty;
@@ -142,8 +146,13 @@ void TIM17_ICBF(void)
 
 void TIM14_ICBF(void)
 {
+	sprintf(lcd_wr_stct.line, "%d / %d\"", time_tmp, time_set);
+	lcd_wr_stct.xpos = (uint8_t)(160-(strlen(lcd_wr_stct.line))*11)/2;
+	lcd_wr_stct.ypos = (uint8_t)(80-CHAR_H)/2;
+	if (time_tmp == 99 || time_tmp == 9)
+		LcdClearScreen(&lcd_wr_stct);
 	LcdWrite11x18(&lcd_wr_stct);
-	tim14_counter--;
+	time_tmp--;
 }
 /*void RTC_AlarmA_ICBF(void)
 {
@@ -198,6 +207,7 @@ int main(void)
   htim1.Instance->CCR1 = 0;
 
   HAL_Delay(2000);
+  LcdClearScreen(&lcd_wr_stct);
   print_set_speed();
   /* USER CODE END 2 */
 
@@ -242,18 +252,18 @@ int main(void)
 			  LcdSetBrightness(HALF_BRIGHTNESS);
 			  while (!HAL_GPIO_ReadPin(SPEED_PLUS_GPIO_Port, SPEED_PLUS_Pin))
 			  {
-				  if (time_set < 5)
+				  if (time_set < 180)
 				  {
-					  time_set += 1;
+					  time_set += 10;
 					  print_set_speed();
 				  }
 			  }
 
 			  while (!HAL_GPIO_ReadPin(SPEED_MINUS_GPIO_Port, SPEED_MINUS_Pin))
 			  {
-				  if (time_set > 0)
+				  if (time_set > 30)
 				  {
-					  time_set -= 1;
+					  time_set -= 10;
 					  print_set_speed();
 				  }
 			  }
@@ -262,37 +272,34 @@ int main(void)
 
 	  if (!HAL_GPIO_ReadPin(ON_GPIO_Port, ON_Pin) && !run_flag)
 	  {
-		  LcdClearScreen();
 		  HAL_Delay(DEBOUNCE_TIME);
+		  time_tmp = time_set;
+		  LcdClearScreen(&lcd_wr_stct);
 
 		  run_flag = true;
           LcdSetBrightness(HALF_BRIGHTNESS);
-          tim14_counter = secs[time_set];
           HAL_Delay(REGISTER_WR_TIME);
 
           HAL_TIM_Base_Start_IT(&htim14);
           HAL_TIM_Base_Start_IT(&htim17);
           HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-
 	  }
 
 	  if (run_flag)
 	  {
+		  if (time_tmp <= 0)
+		  {
+			  HAL_Delay(500);
+			  run_status_deinit();
+		      MX_RTC_Init();
+		  }
+
 		  if (current_duty < default_duty && spd_inc_flag)
 		  {
 			  spd_inc_flag = false;
 			  current_duty += 5;
 		  }
 		  htim1.Instance->CCR1 = current_duty;
-		  lcd_wr_stct.xpos = 65;
-		  lcd_wr_stct.ypos = 35;
-		  sprintf(lcd_wr_stct.line, "%d'", tim14_counter);
-
-		  if (tim14_counter <= 0)
-		  {
-			  run_status_deinit();
-		      MX_RTC_Init();
-		  }
 	  }
 
 	  HAL_RTC_GetTime(&hrtc, &stimestructureget, RTC_FORMAT_BIN);
@@ -305,7 +312,7 @@ int main(void)
 
 	  if (stimestructureget.Seconds >= 120 && !run_flag)
 	  {
-		  LcdClearScreen();
+		  LcdClearScreen(&lcd_wr_stct);
 		  LcdSetBrightness(ZERO_BRIGHTNESS);
 	  }
 
@@ -554,7 +561,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 320;
+  htim1.Init.Prescaler = 32;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 1000;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -716,7 +723,7 @@ static void MX_TIM17_Init(void)
 
   /* USER CODE END TIM17_Init 1 */
   htim17.Instance = TIM17;
-  htim17.Init.Prescaler = 16;
+  htim17.Init.Prescaler = 80;
   htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim17.Init.Period = 2000;
   htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;

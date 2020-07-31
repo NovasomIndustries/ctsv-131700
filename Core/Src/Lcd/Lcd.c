@@ -5,7 +5,6 @@
  *      Author: fil
  */
 #include "Lcd.h"
-
 #include "main.h"
 
 extern	TIM_HandleTypeDef 	htim16;
@@ -73,7 +72,7 @@ static void initVideo(void)
 		VideoMem[i].ypos *= vertical_line_space;
 		ST7735_WriteString(VideoMem[i].xpos, VideoMem[i].ypos,VideoMem[i].line,Font_7x10,VideoMem[i].fore_color,VideoMem[i].bkg_color);
 	}*/
-	ST7735_WriteString(30, 35, "SurgyBlue", Font_11x18, ST7735_BLUE, ST7735_BLACK);
+	ST7735_WriteString(30, 31, "SurgyBlue", Font_11x18, ST7735_BLUE, ST7735_BLACK);
 }
 
 void LcdSetBrightness(uint16_t brightness)
@@ -94,11 +93,11 @@ void LcdInit(void)
 
 void LcdWrite11x18(Video *wr_struct)
 {
-	ST7735_FillScreen(ST7735_BLACK);
 	ST7735_WriteString(wr_struct->xpos, wr_struct->ypos, wr_struct->line, Font_11x18, wr_struct->fore_color, wr_struct->bkg_color);
 }
 
-void LcdClearScreen(Void)
+void LcdClearScreen(Video *wr_struct)
 {
 	ST7735_FillScreen(ST7735_BLACK);
+	ST7735_FillRectangle(wr_struct->xpos, wr_struct->ypos, strlen(wr_struct->line)*CHAR_W, CHAR_H, ST7735_BLACK);
 }
